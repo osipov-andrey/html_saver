@@ -1,5 +1,6 @@
 .dockerignore
 Pipfile.lock
+*.html
 
 # Byte-compiled / optimized / DLL files
 *.py[cod]

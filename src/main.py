@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from yarl import URL
 
 import db
+import files
 
 
 def ref_generator(root_url: str, bs_result_set):
@@ -47,6 +48,7 @@ async def get_data_from_url(url: str, load_level):
             title = None
         html = res.text
 
+        html = await files.save_html(url_, html)
         asyncio.ensure_future(db.save_to_db(str(url_), title, html, parent=url), loop=db.loop)
 
         if level_ >= load_level:
@@ -56,7 +58,7 @@ async def get_data_from_url(url: str, load_level):
         await asyncio.gather(*todos, loop=db.loop)
 
     try:
-        await load(url, 0)
+        await load(URL(url), 0)
     finally:
         await client.aclose()
         await db.pg.pool.close()
@@ -64,8 +66,8 @@ async def get_data_from_url(url: str, load_level):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("cmd", help="load/get", default=None)
-    parser.add_argument("url", help="URL-address", default=None)
+    parser.add_argument("cmd", help="load/get/drop")
+    parser.add_argument("--url", help="URL-address", default=None)
 
     parser.add_argument("--depth", help="Depth of scraping for load", default=2)
     parser.add_argument("-n", help="Rows count to get", default=10)
@@ -82,3 +84,5 @@ if __name__ == '__main__':
         db.loop.run_until_complete(db.get_from_db(
             parent=args.url, limit=int(args.n)
         ))
+    elif cmd == "drop":
+        db.refresh_table()

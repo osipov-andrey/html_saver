@@ -1,11 +1,12 @@
 FROM python:3.8.1-alpine
 
-COPY ./requirements.txt ./requirements-dev.txt /app/
-
 WORKDIR /app
 
-RUN pip install -r requirements.txt -r requirements-dev.txt
+COPY ./requirements.txt ./
+
+RUN pip install -r requirements.txt
 
 COPY . .
 
-CMD python
+CMD ["python", "src/main.py"]
+
