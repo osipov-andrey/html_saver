@@ -1,40 +1,83 @@
 import argparse
 import asyncio
+import functools
+import time
+
 import httpx
 
 from bs4 import BeautifulSoup
 from yarl import URL
 
-from html_saver.src.db import db
-from html_saver.src.db.db import files
+from db import DataBase, files
 
 
-def ref_generator(root_url: str, bs_result_set):
-    root = URL(root_url)
-    for ref in bs_result_set:
+def timer(func):
+
+    @functools.wraps(func)
+    async def wrapper(*args_, **kwargs):
+        start = time.perf_counter()
+        await func(*args_, **kwargs)
+        finish = time.perf_counter()
+        print(finish - start)
+    return wrapper
+
+
+def not_retries(func):
+    cache = set()
+
+    @functools.wraps(func)
+    async def wrapper(url, *args_):
+        if url not in cache:
+            cache.add(url)
+            await func(url, *args_)
+        return
+    return wrapper
+
+
+class SpiderCrawler:
+
+    def __init__(self, start_url, database, depth):
+        self.client = httpx.AsyncClient()
+        self.url = URL(start_url)
+        self.db = database
+        self.depth = depth
+
+    @timer
+    async def get_data_from_url(self):
+        calls = 0
+
+        @not_retries
+        async def load(url_: URL, level_):
+            nonlocal calls
+            calls += 1
+            try:
+                title, html_body, soup = await self._load_and_parse(url_)
+            except TypeError:
+                # Can't download
+                return
+
+            html_file = await files.save_html(url_, html_body)
+            asyncio.ensure_future(self.db.save_to_db(
+                str(url_), title, html_file, parent=self.url.human_repr())
+            )
+
+            if level_ >= self.depth:
+                return
+
+            refs = {*self._ref_generator(soup.findAll('a'))}
+            todos = [load(ref, level_ + 1) for ref in refs]
+            await asyncio.gather(*todos)
+
         try:
-            href = URL(ref.attrs['href'])
+            await load(self.url, 0)
+        finally:
+            print("CALLS: ", calls)
+            await self.client.aclose()
+            await self.db.pg.pool.close()
 
-            if href.query_string:  # Without QS
-                continue
-
-            if not href.is_absolute():
-                href = root.join(href)
-
-            if href != root:
-                yield href
-        except KeyError:
-            continue
-
-
-async def get_data_from_url(url: str, load_level):
-
-    client = httpx.AsyncClient()
-
-    async def load(url_, level_):
-
+    async def _load_and_parse(self, url_: URL):
         try:
-            res = await client.get(str(url_))
+            res = await self.client.get(str(url_))
         except httpx.HTTPError:
             return
         except ValueError:
@@ -46,27 +89,32 @@ async def get_data_from_url(url: str, load_level):
             title = soup.title.text
         except AttributeError:
             title = None
-        html = res.text
+        html_body = res.text
 
-        html = await files.save_html(url_, html)
-        asyncio.ensure_future(db.save_to_db(str(url_), title, html, parent=url), loop=db.loop)
+        return title, html_body, soup
 
-        if level_ >= load_level:
-            return
-        refs = {*ref_generator(url, soup.findAll('a'))}
-        todos = [load(ref, level_ + 1) for ref in refs]
-        await asyncio.gather(*todos, loop=db.loop)
+    def _ref_generator(self, bs_result_set):
 
-    try:
-        await load(URL(url), 0)
-    finally:
-        await client.aclose()
-        await db.pg.pool.close()
+        for ref in bs_result_set:
+            try:
+                href = URL(ref.attrs['href'])
+
+                if href.query_string:  # Without QS
+                    continue
+
+                if not href.is_absolute():
+                    href = self.url.join(href)
+
+                if href != self.url:
+                    yield href
+            except KeyError:
+                continue
 
 
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("cmd", help="load/get/drop")
+    parser.add_argument("cmd", help="load/get")
     parser.add_argument("--url", help="URL-address", default=None)
 
     parser.add_argument("--depth", help="Depth of scraping for load", default=2)
@@ -76,13 +124,15 @@ if __name__ == '__main__':
 
     cmd = args.cmd.lower().strip()
 
+    db = DataBase()
+
     if cmd == "load":
-        db.loop.run_until_complete(get_data_from_url(
-            args.url, int(args.depth)
-        ))
+        spider = SpiderCrawler(args.url, db, int(args.depth))
+
+        db.loop.run_until_complete(spider.get_data_from_url())
+
     elif cmd == "get":
         db.loop.run_until_complete(db.get_from_db(
             parent=args.url, limit=int(args.n)
         ))
-    elif cmd == "drop":
-        db.refresh_table()
+

@@ -2,7 +2,7 @@ import argparse
 
 from sqlalchemy import create_engine
 
-from . import schema
+import schema
 from files_storage import files
 
 
@@ -31,3 +31,7 @@ def main():
         drop(engine)
     else:
         raise ValueError("Unknown cmd!")
+
+
+if __name__ == '__main__':
+    main()

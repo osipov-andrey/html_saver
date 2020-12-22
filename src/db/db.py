@@ -4,8 +4,8 @@ from asyncpgsa import PG
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from html_saver.src.db.files_storage import files
-from html_saver.src.db.schema import urls_table
+from .files_storage import files
+from .schema import urls_table
 
 
 class DataBase:
@@ -40,51 +40,52 @@ class DataBase:
         print(f"Save url: {url}")
         async with self.pg.transaction() as conn:
 
-            data = {
-                "url": url,
-                "title": title,
-                "html": html_file_name,
-                "parent": parent
-            }
-
             insert_query = insert(urls_table).values(
-                **data
+                {
+                    "url": url,
+                    "title": title,
+                    "html": html_file_name,
+                    "parent": parent
+                }
             )
 
             update_query = insert_query.on_conflict_do_update(
                 constraint="urls_url_key",
                 set_={
                     "title": title,
-                    "html": await _update_html(url, html_file_name, conn),
+                    "html": await self._update_html(url, html_file_name, conn),
                     "parent": parent
                 }
             )
 
             await conn.execute(update_query)
 
+    async def get_from_db(self, *, parent, limit=10):
+        async with self.pg.transaction() as conn:
+            query = select(
+                [urls_table.c.url, urls_table.c.title]
+            ).where(
+                urls_table.c.parent == parent
+            ).limit(limit)
 
-async def _update_html(url: str, html_file_name: str, connection):
-    """ Удалять HTML-файлы, ссылки на которые удаляются из БД """
+            for res in await conn.fetch(query):
+                print(f"{res[0]}: \"{res[1]}\"")
 
-    query = select(
-        [urls_table.c.html, ]
-    ).where(
-        urls_table.c.url == url
-    )
+    @staticmethod
+    async def _update_html(url: str, html_file_name: str, connection):
+        """ Удалять HTML-файлы, ссылки на которые удаляются из БД """
 
-    old_html = await connection.fetchval(query)
+        query = select(
+            [urls_table.c.html, ]
+        ).where(
+            urls_table.c.url == url
+        )
 
-    if old_html:
-        files.del_html(old_html)
-        print("Delete file: ", old_html)
+        old_html = await connection.fetchval(query)
 
-    return html_file_name
+        if old_html:
+            files.del_html(old_html)
+            print("Delete file: ", old_html)
 
+        return html_file_name
 
-async def get_from_db(*, parent, limit=10):
-    async with pg.transaction() as conn:
-        for res in await conn.fetch(
-            SELECT_QUERY,
-            parent, limit
-        ):
-            print(f"{res[0]}: \"{res[1]}\"")
