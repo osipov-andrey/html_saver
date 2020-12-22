@@ -5,8 +5,8 @@ import httpx
 from bs4 import BeautifulSoup
 from yarl import URL
 
-import db
-import files
+from html_saver.src.db import db
+from html_saver.src.db.db import files
 
 
 def ref_generator(root_url: str, bs_result_set):

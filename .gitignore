@@ -2,7 +2,7 @@
 Pipfile.lock
 *.html
 
-# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files_storage
 *.py[cod]
 __pycache__/
 *$py.class
