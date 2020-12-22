@@ -2,14 +2,19 @@ import asyncio
 
 from asyncpgsa import PG
 from sqlalchemy import (Column, String, Text, Table, Integer,
-                        MetaData, create_engine, UniqueConstraint)
+                        MetaData, create_engine, UniqueConstraint, select)
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.declarative import declarative_base
+
 import files
+
+
+Base = declarative_base()
+
+
 
 loop = asyncio.get_event_loop()
 
-CREATE_QUERY = "INSERT INTO urls(url, title, html, parent)" \
-               "VALUES($1, $2, $3, $4)"
 
 SELECT_QUERY = "SELECT url, title FROM urls " \
                "WHERE parent = $1 LIMIT $2"
@@ -40,7 +45,7 @@ loop.run_until_complete(
         max_size=100
     )
 )
-
+urls_table.create(engine, checkfirst=True)
 
 def refresh_table():
     urls_table.drop(engine)
@@ -48,18 +53,14 @@ def refresh_table():
     files.drop_html_files()
 
 
-async def save_to_db(url, title, html, *, parent):
+async def save_to_db(url, title, html_file_name, *, parent):
     print(f"Save url: {url}")
     async with pg.transaction() as conn:
-        # await conn.execute(
-        #     CREATE_QUERY,
-        #     url, title, html, parent
-        # )
 
         data = {
             "url": url,
             "title": title,
-            "html": html,
+            "html": html_file_name,
             "parent": parent
         }
 
@@ -69,15 +70,32 @@ async def save_to_db(url, title, html, *, parent):
 
         update_query = insert_query.on_conflict_do_update(
             constraint="urls_url_key",
-            # index_elements=["id"],
             set_={
                 "title": title,
-                "html": html,
+                "html": await _update_html(url, html_file_name, conn),
                 "parent": parent
             }
         )
 
         await conn.execute(update_query)
+
+
+async def _update_html(url: str, html_file_name: str, connection):
+    """ Удалять HTML-файлы, ссылки на которые удаляются из БД """
+
+    query = select(
+        [urls_table.c.html, ]
+    ).where(
+        urls_table.c.url == url
+    )
+
+    old_html = await connection.fetchval(query)
+
+    if old_html:
+        files.del_html(old_html)
+        print("Delete file: ", old_html)
+
+    return html_file_name
 
 
 async def get_from_db(*, parent, limit=10):
