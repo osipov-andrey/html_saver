@@ -8,7 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 from yarl import URL
 
-from db import DataBase, files
+from db import DataBase
 
 
 def timer(func):
@@ -56,15 +56,14 @@ class SpiderCrawler:
                 # Can't download
                 return
 
-            html_file = await files.save_html(url_, html_body)
             asyncio.ensure_future(self.db.save_to_db(
-                str(url_), title, html_file, parent=self.url.human_repr())
+                url_, title, html_body, parent=self.url.human_repr())
             )
 
             if level_ >= self.depth:
                 return
 
-            refs = {*self._ref_generator(soup.findAll('a'))}
+            refs = self._ref_generator(soup.findAll('a'))
             todos = [load(ref, level_ + 1) for ref in refs]
             await asyncio.gather(*todos)
 
@@ -111,11 +110,10 @@ class SpiderCrawler:
                 continue
 
 
-if __name__ == '__main__':
-
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("cmd", help="load/get")
-    parser.add_argument("--url", help="URL-address", default=None)
+    parser.add_argument("url", help="URL-address")
 
     parser.add_argument("--depth", help="Depth of scraping for load", default=2)
     parser.add_argument("-n", help="Rows count to get", default=10)
@@ -136,3 +134,6 @@ if __name__ == '__main__':
             parent=args.url, limit=int(args.n)
         ))
 
+
+if __name__ == '__main__':
+    main()

@@ -16,14 +16,16 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("cmd", help="create/drop table")
+    parser.add_argument("--db", help="Database type", default="postgresql")
+    parser.add_argument("--db_params", help="Database params",
+                        default="andrey:andrey@0.0.0.0/mydb")
     args = parser.parse_args()
 
     cmd = args.cmd.lower().strip()
+    db = args.db
+    db_params = args.db_params
 
-    engine = create_engine(
-        # TODO: прочь из кода
-        'postgresql://andrey:andrey@0.0.0.0/mydb', echo=True
-    )
+    engine = create_engine(f'{db}://{db_params}', echo=True)
 
     if cmd == "create":
         schema.urls_table.create(engine, checkfirst=True)

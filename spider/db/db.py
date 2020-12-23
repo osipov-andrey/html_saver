@@ -36,15 +36,15 @@ class DataBase:
             )
         )
 
-    async def save_to_db(self, url, title, html_file_name, *, parent):
+    async def save_to_db(self, url, title, html_body, *, parent):
         print(f"Save url: {url}")
         async with self.pg.transaction() as conn:
 
             insert_query = insert(urls_table).values(
                 {
-                    "url": url,
+                    "url": str(url),
                     "title": title,
-                    "html": html_file_name,
+                    "html": await files.save_html(url, html_body),
                     "parent": parent
                 }
             )
@@ -53,7 +53,7 @@ class DataBase:
                 constraint="urls_url_key",
                 set_={
                     "title": title,
-                    "html": await self._update_html(url, html_file_name, conn),
+                    "html": await self._update_html(str(url), html_body, conn),
                     "parent": parent
                 }
             )
