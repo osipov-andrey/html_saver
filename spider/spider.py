@@ -178,7 +178,7 @@ def main():
     parser_db.set_defaults(func=_db)
 
     args = parser.parse_args()
-
+    print(args)
     args.func(args)
 
 
