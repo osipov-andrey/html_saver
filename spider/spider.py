@@ -1,14 +1,14 @@
 import argparse
 import asyncio
-import functools
-import time
-
 import httpx
+import os
+import time
+import functools
 
 from bs4 import BeautifulSoup
 from yarl import URL
 
-from db import DataBase
+from db import DataBase, drop_table, create_table
 
 
 def timer(func):
@@ -110,29 +110,76 @@ class SpiderCrawler:
                 continue
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("cmd", help="load/get")
-    parser.add_argument("url", help="URL-address")
+ENV_VAR_PREFIX = 'SPIDER_'
 
-    parser.add_argument("--depth", help="Depth of scraping for load", default=2)
-    parser.add_argument("-n", help="Rows count to get", default=10)
+
+def from_env(var: str):
+    var = ENV_VAR_PREFIX + var.upper()
+    return os.getenv(var)
+
+
+def create_db(args):
+    db = DataBase(
+        login=args.db_login,
+        pwd=args.db_pwd,
+        host=args.db_host,
+        db=args.db_name,
+    )
+    return db
+
+
+def main():
+
+    def _get(args_):
+        db = create_db(args_)
+        db.loop.run_until_complete(db.get_from_db(
+            parent=args_.url, limit=int(args_.n)
+        ))
+
+    def _load(args_):
+        db = create_db(args_)
+        spider = SpiderCrawler(args_.url, db, int(args_.depth))
+        db.loop.run_until_complete(spider.get_data_from_url())
+
+    def _db(args_):
+        action = args_.action.lower().strip()
+        action_args = (
+            args_.db_login, args_.db_pwd, args_.db_host, args_.db_name
+        )
+
+        if action == "create":
+            create_table(*action_args)
+        elif action == "drop":
+            drop_table(*action_args)
+        else:
+            raise ValueError("Unknown db action!")
+
+    parser = argparse.ArgumentParser(prog="SPYDER",)
+    parser.add_argument("--db_login", default=from_env("db_login"))
+    parser.add_argument("--db_pwd", default=from_env("db_pwd"))
+    parser.add_argument("--db_host", default=from_env("db_host"))
+    parser.add_argument("--db_name", default=from_env("db_name"))
+
+    subparsers = parser.add_subparsers(help="Operating mode")
+
+    parser_get = subparsers.add_parser("get", help="Get URL from database")
+    parser_get.add_argument("url", help="URL-address")
+    parser_get.add_argument("-n", help="Number of URLs", default=5)
+    parser_get.set_defaults(func=_get)
+
+    parser_load = subparsers.add_parser("load", help="Load URL to database")
+    parser_load.add_argument("url", help="URL-address")
+    parser_load.add_argument("--depth", help="Depth of scraping for load",
+                             default=1)
+    parser_load.set_defaults(func=_load)
+
+    parser_db = subparsers.add_parser("db", help="operation with database")
+    parser_db.add_argument("action", help="drop/create")
+    parser_db.set_defaults(func=_db)
 
     args = parser.parse_args()
 
-    cmd = args.cmd.lower().strip()
-
-    db = DataBase()
-
-    if cmd == "load":
-        spider = SpiderCrawler(args.url, db, int(args.depth))
-
-        db.loop.run_until_complete(spider.get_data_from_url())
-
-    elif cmd == "get":
-        db.loop.run_until_complete(db.get_from_db(
-            parent=args.url, limit=int(args.n)
-        ))
+    args.func(args)
 
 
 if __name__ == '__main__':

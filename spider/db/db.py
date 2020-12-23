@@ -14,10 +14,10 @@ class DataBase:
         self,
         *,
         driver="postgresql",
-        host="0.0.0.0",
-        login="andrey",
-        pwd="andrey",
-        db="mydb",
+        host,
+        login,
+        pwd,
+        db,
         loop_=None
     ):
         sql_params = f"{driver}://{login}:{pwd}@{host}/{db}"
