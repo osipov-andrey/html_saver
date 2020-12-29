@@ -1,9 +1,27 @@
-version: '3.2'
+version: '3.8'
 
 services:
   app:
     build: .
+    image: spider
+    env_file:
+      - .env
     volumes:
-      - .:/app:cached
+      - html_files:/app/spider/db/files_storage/html_files
+    depends_on:
+      - db
+
   db:
-    ...
+    image: postgres
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: andrew
+      POSTGRES_PASSWORD: andrew
+    ports:
+      - 5432:5432
+    volumes:
+      - db_dump:/var/lib/postgresql/data
+
+volumes:
+  html_files:
+  db_dump:
