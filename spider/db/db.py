@@ -3,6 +3,7 @@ import asyncio
 from asyncpgsa import PG
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from yarl import URL
 
 from .files_storage import files
 from .schema import urls_table
@@ -53,7 +54,7 @@ class DataBase:
                 constraint="urls_url_key",
                 set_={
                     "title": title,
-                    "html": await self._update_html(str(url), html_body, conn),
+                    "html": await self._update_html(url, html_body, conn),
                     "parent": parent
                 }
             )
@@ -72,13 +73,13 @@ class DataBase:
                 print(f"{res[0]}: \"{res[1]}\"")
 
     @staticmethod
-    async def _update_html(url: str, html_file_name: str, connection):
+    async def _update_html(url: URL, html_file_body: str, connection):
         """ Удалять HTML-файлы, ссылки на которые удаляются из БД """
 
         query = select(
             [urls_table.c.html, ]
         ).where(
-            urls_table.c.url == url
+            urls_table.c.url == str(url)
         )
 
         old_html = await connection.fetchval(query)
@@ -86,6 +87,8 @@ class DataBase:
         if old_html:
             files.del_html(old_html)
             print("Delete file: ", old_html)
+
+        html_file_name = await files.save_html(url, html_file_body)
 
         return html_file_name
 
