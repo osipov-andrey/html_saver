@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   app:
@@ -7,20 +7,22 @@ services:
     env_file:
       - .env
     volumes:
-      - html_files:/app/spider/db/files_storage/html_files
+      - ./spider/db/files_storage/html_files:/app/spider/db/files_storage/html_files
     depends_on:
       - db
 
   db:
     image: postgres
-    environment:
-      POSTGRES_DB: mydb
-      POSTGRES_USER: andrew
-      POSTGRES_PASSWORD: andrew
+    env_file:
+      - .env
+#    environment:
+#      POSTGRES_DB: mydb
+#      POSTGRES_USER: andrew
+#      POSTGRES_PASSWORD: andrew
     ports:
-      - 5432:5432
+      - 5434:5432
     volumes:
-      - db_dump:/var/lib/postgresql/data
+      - ./db_dump:/var/lib/postgresql/data
 
 volumes:
   html_files:

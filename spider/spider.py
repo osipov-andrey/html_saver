@@ -110,11 +110,8 @@ class SpiderCrawler:
                 continue
 
 
-ENV_VAR_PREFIX = 'SPIDER_'
-
-
 def from_env(var: str):
-    var = ENV_VAR_PREFIX + var.upper()
+    var = var.upper()
     return os.getenv(var)
 
 
@@ -133,7 +130,7 @@ def main():
     def _get(args_):
         db = create_db(args_)
         db.loop.run_until_complete(db.get_from_db(
-            parent=args_.url, limit=int(args_.n)
+            parent=URL(args_.url).human_repr(), limit=int(args_.n)
         ))
 
     def _load(args_):
@@ -155,10 +152,10 @@ def main():
             raise ValueError("Unknown db action!")
 
     parser = argparse.ArgumentParser(prog="SPYDER",)
-    parser.add_argument("--db_login", default=from_env("db_login"))
-    parser.add_argument("--db_pwd", default=from_env("db_pwd"))
-    parser.add_argument("--db_host", default=from_env("db_host"))
-    parser.add_argument("--db_name", default=from_env("db_name"))
+    parser.add_argument("--db_login", default=from_env("POSTGRES_USER"))
+    parser.add_argument("--db_pwd", default=from_env("POSTGRES_PASSWORD"))
+    parser.add_argument("--db_host", default=from_env("POSTGRES_DB_HOST"))
+    parser.add_argument("--db_name", default=from_env("POSTGRES_DB"))
 
     subparsers = parser.add_subparsers(help="Operating mode")
 
