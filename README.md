@@ -67,3 +67,8 @@ $ docker-compose run --rm app get http://www.vesti.ru/ -n 5
 ### TODO:
 * Tests
 * Checking memory usage
+
+
+
+[badge_language]:https://img.shields.io/badge/python-3-yellow?longCache=true
+[badge_docker]:https://img.shields.io/badge/docker-enable-blue?longCache=true
