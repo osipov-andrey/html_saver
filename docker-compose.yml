@@ -15,10 +15,6 @@ services:
     image: postgres
     env_file:
       - .env
-#    environment:
-#      POSTGRES_DB: mydb
-#      POSTGRES_USER: andrew
-#      POSTGRES_PASSWORD: andrew
     ports:
       - 5434:5432
     volumes:
